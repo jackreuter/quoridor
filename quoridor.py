@@ -28,23 +28,27 @@ class Game:
             
             # player 1 turn
             move = self.player1.getMove(self.board)
-            (isValid, error) = self.board.validMove(move)
+            (isValid, error) = self.board.validMove(move, 1)
             while not isValid:
                 self.board.display()
                 print(error)
                 move = self.player1.getMove(self.board)
-                (isValid, error) = self.board.validMove(move)
+                (isValid, error) = self.board.validMove(move, 1)
             self.board.update(move, 1)
             self.board.display()
-            
+
             # player 2 turn
             move = self.player2.getMove(self.board)
-            while not self.board.validMove(move):
+            (isValid, error) = self.board.validMove(move, 2)
+            while not isValid:
+                self.board.display()
+                print(error)
                 move = self.player2.getMove(self.board)
+                (isValid, error) = self.board.validMove(move, 2)
             self.board.update(move, 2)
             self.board.display()
-
-        self.board.displayEndResult()
+            
+        self.board.displayEndResult()        
 
 class Human:
     def __init__(self, name):
@@ -104,6 +108,13 @@ class Board:
             "H":7,
             "I":8
         }
+        
+    def getPlayerPosition(self, player):
+        for i, row in enumerate(self.board):
+            for j, cell in enumerate(row):
+                if cell==player:
+                    return i, j
+        return -1, -1
 
     def wallsRemaining(self, player):
         count = 0
@@ -118,28 +129,178 @@ class Board:
         return 8 - count
             
 
-    def validMove(self, move):
+    def validMove(self, move, player):
         move = move.upper()
+        if not self.validFormat(move):
+            return False, "Invalid format"
+        else:
+            return self.legalMove(move, player)
+
+    def validFormat(self, move):
         rows = "123456789"
         columns = "ABCDEFGHI"
         if len(move)==4:
             # WALL
             if (move[0] in rows and move[1] in rows and move[2] in columns and move[3] in columns):
                 if int(move[0])+1==int(move[1]) and int(self.moveDictionary.get(move[2]))+1==int(self.moveDictionary.get(move[3])):
-                    return True, ""
+                    return True
                 else:
-                    return False, "Invalid format"
+                    return False
             if (move[0] in columns and move[1] in columns and move[2] in rows and move[3] in rows):
                 if int(move[2])+1==int(move[3]) and int(self.moveDictionary.get(move[0]))+1==int(self.moveDictionary.get(move[1])):
-                    return True, ""
+                    return True
                 else:
-                    return False, "Invalid format"
+                    return False
 
         elif len(move)==2:
-            # STEP
-            return True, ""
+            # MOVEMENT
+            if (move[0] in columns and move[1] in rows):
+                return True
+            else:
+                return False
         else:
-            return False, "Invalid move"
+            return False
+
+    def legalMove(self, move, player):
+        (isLegal, error) = True, ""
+        if len(move) == 4:
+            # WALL
+            if move[0] in self.moveDictionary.keys():
+                # VERTICAL
+                i = self.moveDictionary.get(move[0])
+                j = int(move[2])-1
+                # check if wall exists
+                if self.wallsVertical[i][j] > 0:
+                    return False, "wall already exists"
+                # check if crossing
+                if self.wallsHorizontal[j][i] > 0:
+                    return False, "walls cannot intersect"
+                else:
+                    # check if overlaps
+                    if j == 0:
+                        if self.wallsVertical[i][j+1] > 0:
+                            return False, "walls cannot overlap"
+                    elif j == 7:
+                        if self.wallsVertical[i][j-1] > 0:
+                            return False, "walls cannot overlap"
+                    else:
+                        if self.wallsVertical[i][j-1] > 0 or self.wallsVertical[i][j+1] > 0:
+                            return False, "walls cannot overlap"
+                
+            else:
+                # HORIZONTAL
+                i = int(move[0])-1
+                j = self.moveDictionary.get(move[2])
+                # check if wall exists
+                if self.wallsHorizontal[i][j] > 0:
+                    return False, "wall already exists"
+                # check if crossing
+                elif self.wallsVertical[j][i] > 0:
+                    return False, "walls cannot intersect"
+                else:
+                    # check if overlaps
+                    if j == 0:
+                        if self.wallsHorizontal[i][j+1] > 0:
+                            return False, "walls cannot overlap"
+                    elif j == 7:
+                        if self.wallsHorizontal[i][j-1] > 0:
+                            return False, "walls cannot overlap"
+                    else:
+                        if self.wallsHorizontal[i][j-1] > 0 or self.wallsHorizontal[i][j+1] > 0:
+                            return False, "walls cannot overlap"
+
+        if len(move) == 2: 
+            # MOVEMENT
+            # check adjacency
+            (x, y) = self.getPlayerPosition(player)
+            i = int(move[1])-1
+            j = self.moveDictionary.get(move[0])
+            if not (((i == x+1 or i == x-1) and (j == y)) or ((i == x) and (j == y+1 or j == y-1))):
+                print(x,y,i,j)
+                return False, "must move to an adjacent square"
+            else:
+                # check walls
+                if (j == y):
+                    if (i == x+1):
+                        # NORTH
+                        if (y == 0):
+                            if (self.wallsHorizontal[x][y] > 0):
+                                return False, "cannot move through wall"
+                            else:
+                                return True, ""
+                        elif (y == 8):
+                            if (self.wallsHorizontal[x][y-1] > 0):
+                                return False, "cannot move through wall"
+                            else:
+                                return True, ""
+                        else:
+                            if (self.wallsHorizontal[x][y] > 0 or self.wallsHorizontal[x][y-1] > 0):
+                                return False, "cannot move through wall"
+                            else:
+                                return True, ""
+                        return True, ""
+                    elif (i == x-1):
+                        # SOUTH
+                        if (y == 0):
+                            if (self.wallsHorizontal[x-1][y] > 0):
+                                return False, "cannot move through wall"
+                            else:
+                                return True, ""
+                        elif (y == 8):
+                            if (self.wallsHorizontal[x-1][y-1] > 0):
+                                return False, "cannot move through wall"
+                            else:
+                                return True, ""
+                        else:
+                            if (self.wallsHorizontal[x-1][y] > 0 or self.wallsHorizontal[x-1][y-1] > 0):
+                                return False, "cannot move through wall"
+                            else:
+                                return True, ""
+                        return True, ""
+                    else:
+                        return False, "coding error"
+                elif (i == x):
+                    if (j == y+1):
+                        # EAST
+                        if (x == 0):
+                            if (self.wallsVertical[y][x] > 0):
+                                return False, "cannot move through wall"
+                            else:
+                                return True, ""
+                        elif (x == 8):
+                            if (self.wallsVertical[y][x-1] > 0):
+                                return False, "cannot move through wall"
+                            else:
+                                return True, ""
+                        else:
+                            if (self.wallsVertical[y][x] > 0 or self.wallsVertical[y][x-1] > 0):
+                                return False, "cannot move through wall"
+                            else:
+                                return True, ""
+                        return True, ""
+                    elif (j == y-1):
+                        # WEST
+                        if (x == 0):
+                            if (self.wallsVertical[y-1][x] > 0):
+                                return False, "cannot move through wall"
+                            else:
+                                return True, ""
+                        elif (x == 8):
+                            if (self.wallsVertical[y-1][x-1] > 0):
+                                return False, "cannot move through wall"
+                            else:
+                                return True, ""
+                        else:
+                            if (self.wallsVertical[y-1][x] > 0 or self.wallsVertical[y-1][x-1] > 0):
+                                return False, "cannot move through wall"
+                            else:
+                                return True, ""
+                        return True, ""
+                    else:
+                        return False, "coding error"
+                else:
+                    return False, "coding error"
+        return isLegal, error
 
     def update(self, move, player):
         move = move.upper()
@@ -150,19 +311,19 @@ class Board:
                 i = self.moveDictionary.get(move[0])
                 j = int(move[2])-1
                 self.wallsVertical[i][j] = player
+                print (i,j)
                 
             else:
                 # HORIZONTAL
                 i = int(move[0])-1
                 j = self.moveDictionary.get(move[2])
                 self.wallsHorizontal[i][j] = player
+                print (i,j)
                 
         else:
-            # STEP
-            for i, row in enumerate(self.board):
-                for j, cell in enumerate(row):
-                    if cell==player:
-                        self.board[i][j]=0
+            # MOVEMENT
+            (x, y) = self.getPlayerPosition(player)
+            self.board[x][y]=0
             i = int(move[1])-1
             j = self.moveDictionary.get(move[0])
             self.board[i][j] = player
@@ -181,6 +342,8 @@ class Board:
             self.displayGap(8-i)
         self.displayRow(1)
         sys.stdout.write("                 A       B       C       D       E       F       G       H       I\n")
+        for row in self.board:
+            print(row)
 
     def displayRow(self, rowNumber):
         self.displayRowHelper(rowNumber, False, "|     |")
@@ -193,7 +356,7 @@ class Board:
         else:
             sys.stdout.write("              ")
 
-        for i in range(8):
+        for i in range(9):
             if rowNumber==9:
                 if self.wallsVertical[i][rowNumber-2] > 0:
                     if center and self.board[rowNumber-1][i]==1:
@@ -239,7 +402,7 @@ class Board:
                         sys.stdout.write("|  2  | ")
                     else:
                         sys.stdout.write(cellString+" ")
-        sys.stdout.write(cellString+"\n")
+        sys.stdout.write("\n")
         
     def displayGap(self, gapNumber):
         if (self.wallsRemaining(1) > 8-gapNumber):
