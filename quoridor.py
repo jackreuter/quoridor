@@ -23,9 +23,8 @@ class Game:
     def play(self):
         self.board.display()
         gameOver = False
+        winner = -1
         while not gameOver:
-            gameOver = self.board.isGameOver()
-            
             # player 1 turn
             move = self.player1.getMove(self.board)
             (isValid, error) = self.board.validMove(move, 1)
@@ -47,9 +46,15 @@ class Game:
                 (isValid, error) = self.board.validMove(move, 2)
             self.board.update(move, 2)
             self.board.display()
-            
-        self.board.displayEndResult()        
 
+            gameOver, winner = self.board.isGameOver()
+        
+        print("GAME OVER")
+        if winner == 1:
+            print(self.player1.name+" wins")
+        else:
+            print(self.player2.name+" wins")
+            
 class Human:
     def __init__(self, name):
         self.name = name
@@ -228,18 +233,35 @@ class Board:
             i = int(move[1])-1
             j = self.moveDictionary.get(move[0])
             if not (i, j) in self.getAdjacentSquares(x, y):
-                return False, "must move to an adjacent square"
+                if self.legalJump(i, j, player):
+                    return True, ""
+                else:
+                    return False, "must move to an adjacent square"
             else:
                 # check walls
                 (isLegal, error) = self.isntBlocked(i, j, x, y)
         return isLegal, error
+
+    # check whether a given move is a legal jump over opponent
+    def legalJump(self, i, j, player):
+        (x, y) = self.getPlayerPosition(player)
+        opponent = 1
+        if player == 1:
+            opponent = 2
+        (opX, opY) = self.getPlayerPosition(opponent)
+        if (opX, opY) in self.getAdjacentSquares(x, y):
+            if self.isntBlocked(opX, opY, x, y)[0]:
+                if (i, j) in self.getAdjacentSquares(opX, opY):
+                    if self.isntBlocked(i, j, opX, opY)[0]:
+                        return True
+        return False
+
 
     # check whether a given wall will block player in
     def wallBlocksPlayerIn(self, wall, player):
         self.update(wall, player)
         (x, y) = self.getPlayerPosition(player)
         reachableSquares = self.getReachableSquares(x, y, [(x, y)])
-        print(len(reachableSquares))
         if player == 1:
             for (i, j) in reachableSquares:
                 if i==8:
@@ -262,7 +284,6 @@ class Board:
             if isntBlocked and not (i, j) in visited:
                 reachableAdjacents.append((i, j))
         visited = visited + reachableAdjacents
-        print (reachableAdjacents)
         for (i, j) in reachableAdjacents:
             visited = self.getReachableSquares(i, j, visited)
         return visited
@@ -400,13 +421,15 @@ class Board:
             j = self.moveDictionary.get(wall[2])
             self.wallsHorizontal[i][j] = 0
                 
-    # display win screen
-    def displayEndResult(self):
-        print("GAME OVER")
-
     # check if either side has won
     def isGameOver(self):
-        return False
+        (x1, y1) = self.getPlayerPosition(1)
+        if x1 == 8:
+            return True, 1
+        (x2, y2) = self.getPlayerPosition(2)
+        if x2 == 0:
+            return True, 2
+        return False, -1
 
     # display board as ascii art
     def display(self):
@@ -417,8 +440,8 @@ class Board:
             self.displayGap(8-i)
         self.displayRow(1)
         sys.stdout.write("                 A       B       C       D       E       F       G       H       I\n")
-        for row in self.board:
-            print(row)
+        #for row in self.board:
+        #    print(row)
 
     # helper function to display board
     def displayRow(self, rowNumber):
